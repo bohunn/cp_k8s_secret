@@ -1,0 +1,22 @@
+apiVersion: v1
+data:
+  wtf: wtf
+  current.target: test2
+  application.properties: |
+    FOO=BartralalaTest
+    Update=update
+    mdf=mdf
+kind: ConfigMap
+metadata:
+  namespace: test1
+  name: example-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-cfg
+  namespace: test2
+data:
+  config.cfg: |
+    namespace=test1
+    secret_name=example-secret1,example-secret2

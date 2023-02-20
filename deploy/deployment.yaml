@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watcher-examplepb
+  labels:
+    app: watcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: watcher
+  template:
+    metadata:
+      labels:
+        app: watcher
+    spec:
+      serviceAccountName: golang-sc
+      containers:
+        - name: watcher
+          image: bohunn/cp-k8s-secret:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - mountPath: /config.cfg
+              name: configs
+              subPath: config.cfg
+      volumes:
+        - name: configs
+          configMap:
+            name: config-cfg
+            defaultMode: 420
