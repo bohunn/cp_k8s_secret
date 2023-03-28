@@ -130,19 +130,21 @@ func deleteSecret(clientset kubernetes.Interface, namespace, name string) error 
 }
 
 func createSecret(clientset kubernetes.Interface, namespace, name string, data map[string][]byte) error {
-	_, err := clientset.CoreV1().Secrets(namespace).Get(context.Background(), name, metav1.GetOptions{})
-	if err != nil {
-		fmt.Printf("%v", err)
-	}
-	// when there is already existing secret in target namespace update it
+	// Check if the secret already exists in the target namespace
+	secret, err := clientset.CoreV1().Secrets(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	if err == nil {
-		err = updateSecret(clientset, namespace, name, data)
+		// If the secret exists, update it instead of creating a new one
+		secret.Data = data
+		_, err = clientset.CoreV1().Secrets(namespace).Update(context.Background(), secret, metav1.UpdateOptions{})
 		if err != nil {
-			log.Fatal(err)
-			return err
+			return fmt.Errorf("failed to update secret: %v", err)
 		}
+		fmt.Printf("Updated secret %s in namespace %s\n", name, namespace)
+		return nil
 	}
-	secret := &corev1.Secret{
+
+	// If the secret does not exist, create a new one
+	secret = &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
