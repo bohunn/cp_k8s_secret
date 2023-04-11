@@ -1,13 +1,9 @@
 # Build Stage
-FROM golang:1.19.1 AS builder
+FROM golang:1.19.7 AS builder
 
-#WORKDIR /go/src/app
 WORKDIR /workspace
 COPY go.mod go.mod
 COPY go.sum go.sum
-#COPY . .
-# Copy custom module
-#COPY cluster /go/src/cluster
 
 RUN go mod download
 
