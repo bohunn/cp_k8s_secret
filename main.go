@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	corev1 "k8s.io/api/core/v1" // Add this import
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,13 +19,18 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+type DeletePolicy string
+
 const (
+	DeletePolicyOrphan DeletePolicy = "ORPHAN"
+	//DeletePolicyDelete DeletePolicy = "DELETE"
 	NS_FILE = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 )
 
 var (
 	namespace       string
 	targetNamespace string
+	deletePolicy    DeletePolicy
 	configFile      = cluster.ParseArgs()
 	conf            = cluster.ReadAppConfig(*configFile)
 )
@@ -37,6 +43,7 @@ func init() {
 
 	namespace = string(nsBytes)
 	targetNamespace = conf["namespace"]
+	deletePolicy = DeletePolicy(conf["deletion_policy"])
 }
 
 func main() {
@@ -120,12 +127,17 @@ func startWatcher(clientset kubernetes.Interface, namespace, name string) error 
 }
 
 func deleteSecret(clientset kubernetes.Interface, namespace, name string) error {
-	err := clientset.CoreV1().Secrets(namespace).Delete(context.Background(), name, metav1.DeleteOptions{})
-	if err != nil {
-		fmt.Errorf("Failed to delete secret %s, in namespace: %s", name, namespace)
+	if deletePolicy == DeletePolicyOrphan {
+		fmt.Printf("[%v] Orphaning secret %s in namespace %s\n", time.Now().Format(time.RFC3339), name, namespace)
+		return nil
 	}
 
-	fmt.Println("Deleted secret %s in namespace %s\n", name, namespace)
+	err := clientset.CoreV1().Secrets(namespace).Delete(context.Background(), name, metav1.DeleteOptions{})
+	if err != nil {
+		return fmt.Errorf("[%v] Failed to delete secret %s in namespace %s: %v", time.Now().Format(time.RFC3339), name, namespace, err)
+	}
+
+	fmt.Printf("[%v] Deleted secret %s in namespace %s\n", time.Now().Format(time.RFC3339), name, namespace)
 	return nil
 }
 
@@ -137,9 +149,9 @@ func createSecret(clientset kubernetes.Interface, namespace, name string, data m
 		secret.Data = data
 		_, err = clientset.CoreV1().Secrets(namespace).Update(context.Background(), secret, metav1.UpdateOptions{})
 		if err != nil {
-			return fmt.Errorf("failed to update secret: %v", err)
+			return fmt.Errorf("[%v] Failed to update secret: %v", time.Now().Format(time.RFC3339), err)
 		}
-		fmt.Printf("Updated secret %s in namespace %s\n", name, namespace)
+		fmt.Printf("[%v] Updated secret %s in namespace %s\n", time.Now().Format(time.RFC3339), name, namespace)
 		return nil
 	}
 
@@ -154,25 +166,25 @@ func createSecret(clientset kubernetes.Interface, namespace, name string, data m
 
 	_, err = clientset.CoreV1().Secrets(namespace).Create(context.Background(), secret, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to create secret: %v", err)
+		return fmt.Errorf("[%v] Failed to create secret: %v", time.Now().Format(time.RFC3339), err)
 	}
-	fmt.Printf("Created secret %s in namespace %s\n", name, namespace)
+	fmt.Printf("[%v] Created secret %s in namespace %s\n", time.Now().Format(time.RFC3339), name, namespace)
 	return nil
 }
 
 func updateSecret(clientset kubernetes.Interface, namespace, name string, data map[string][]byte) error {
 	secret, err := clientset.CoreV1().Secrets(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to get secret: %v", err)
+		return fmt.Errorf("[%v] Failed to get secret: %v", time.Now().Format(time.RFC3339), err)
 	}
 
 	secret.Data = data
 
 	_, err = clientset.CoreV1().Secrets(namespace).Update(context.Background(), secret, metav1.UpdateOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to update secret: %v", err)
+		return fmt.Errorf("[%v] Failed to update secret: %v", time.Now().Format(time.RFC3339), err)
 	}
 
-	fmt.Printf("Updated secret %s in namespace %s\n", name, namespace)
+	fmt.Printf("[%v] Updated secret %s in namespace %s\n", time.Now().Format(time.RFC3339), name, namespace)
 	return nil
 }
