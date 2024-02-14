@@ -28,6 +28,8 @@ const (
 )
 
 var (
+	secretName	    string
+	alias		    string
 	namespace       string
 	targetNamespace string
 	deletePolicy    DeletePolicy
@@ -68,8 +70,17 @@ func main() {
 	for _, s := range secrets {
 		go func(s string) {
 			defer wg.Done()
+			// if a s string is in format secretname:alias, split it and use alias as secret name
+			if strings.Contains(s, ":") {
+				split := strings.Split(s, ":")
+				alias = split[1]
+				secretName = split[0]
+			} else {
+				secretName = s
+				alias = ""
+			}
 			fmt.Printf("Starting Watcher for %s\n", s)
-			err := startWatcher(clientset, namespace, s)
+			err := startWatcher(clientset, namespace, secretName, alias)
 			if err != nil {
 				log.Fatal(err)
 				return
@@ -79,47 +90,50 @@ func main() {
 	wg.Wait()
 }
 
-func startWatcher(clientset kubernetes.Interface, namespace, name string) error {
+func startWatcher(clientset kubernetes.Interface, namespace, name, alias string) error {
 	// Create a new ConfigMap watcher for the specified namespace and name
 	watcher, err := clientset.CoreV1().Secrets(targetNamespace).Watch(context.Background(), metav1.ListOptions{FieldSelector: fmt.Sprintf("metadata.name=%s", name)})
 	if err != nil {
 		log.Fatal(err)
 		return err
 	}
-
+	secret_name := name
+	if alias != "" {
+		secret_name = alias
+	}
 	// Start watching for events
 	for {
 		select {
 		case event, ok := <-watcher.ResultChan():
 			if !ok {
-				fmt.Printf("Error watching secret %s in namespace %s\n", name, targetNamespace)
+				fmt.Printf("Error watching secret %s in namespace %s\n", secretName, targetNamespace)
 				return err
 			}
 			switch event.Type {
 			case watch.Added:
 				fmt.Printf("Secret added: %s\n", event.Object.(*corev1.Secret).Name)
-				err := createSecret(clientset, namespace, name, event.Object.(*corev1.Secret).Data)
+				err := createSecret(clientset, namespace, secret_name, event.Object.(*corev1.Secret).Data)
 				if err != nil {
 					log.Fatal(err)
 					return err
 				}
 			case watch.Modified:
 				fmt.Printf("Secret modified: %s\n", event.Object.(*corev1.Secret).Name)
-				err := updateSecret(clientset, namespace, name, event.Object.(*corev1.Secret).Data)
+				err := updateSecret(clientset, namespace, secret_name, event.Object.(*corev1.Secret).Data)
 				if err != nil {
 					log.Fatal(err)
 					return err
 				}
 			case watch.Deleted:
 				fmt.Printf("Secret deleted: %s\n", event.Object.(*corev1.Secret).Name)
-				err := deleteSecret(clientset, namespace, name)
+				err := deleteSecret(clientset, namespace, secret_name)
 				if err != nil {
 					log.Fatal(err)
 					return err
 				}
 			case watch.Error:
 				err := event.Object.(error)
-				fmt.Printf("Error watching Secret %s in namespace %s: %s\n", name, targetNamespace, err.Error())
+				fmt.Printf("Error watching Secret %s in namespace %s: %s\n", secret_name, targetNamespace, err.Error())
 				return err
 			}
 		}
