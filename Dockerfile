@@ -1,5 +1,5 @@
 # Build Stage
-FROM golang:1.22.0 AS builder
+FROM golang:1.24.2 AS builder
 
 WORKDIR /workspace
 COPY go.mod go.mod
