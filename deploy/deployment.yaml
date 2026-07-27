@@ -17,8 +17,8 @@ spec:
       serviceAccountName: golang-sc
       containers:
         - name: watcher
-          image: bohunn/cp-k8s-secret:latest
-          imagePullPolicy: Always
+          image: bohunn/cp-k8s-secret:0.0.8
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
           volumeMounts:
